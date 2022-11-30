@@ -1005,6 +1005,40 @@ func TestServiceResource_clusterIP(t *testing.T) {
 	})
 }
 
+func TestServiceResource_clusterIPAsEndpoint(t *testing.T) {
+	t.Parallel()
+	client := fake.NewSimpleClientset()
+	syncer := newTestSyncer()
+	serviceResource := defaultServiceResource(client, syncer)
+	serviceResource.ClusterIPSync = true
+	serviceResource.ClusterIPAsEndpoint = true
+
+	// Start the controller
+	closer := controller.TestControllerRun(&serviceResource)
+	defer closer()
+
+	// Insert the service
+	svc := clusterIPService("foo", metav1.NamespaceDefault)
+	svc.Spec.ClusterIP = "1.1.1.1"
+
+	_, err := client.CoreV1().Services(metav1.NamespaceDefault).Create(context.Background(), svc, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	// Insert the endpoints
+	createEndpoints(t, client, "foo", metav1.NamespaceDefault)
+
+	// Verify what we got
+	retry.Run(t, func(r *retry.R) {
+		syncer.Lock()
+		defer syncer.Unlock()
+		actual := syncer.Registrations
+		require.Len(r, actual, 1)
+		require.Equal(r, "foo", actual[0].Service.Service)
+		require.Equal(r, "1.1.1.1", actual[0].Service.Address)
+		require.Equal(r, 80, actual[0].Service.Port)
+	})
+}
+
 // Test clusterIP with prefix.
 func TestServiceResource_clusterIPPrefix(t *testing.T) {
 	t.Parallel()

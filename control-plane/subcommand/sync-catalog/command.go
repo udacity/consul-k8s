@@ -54,6 +54,7 @@ type Command struct {
 	flagAddK8SNamespaceSuffix bool
 	flagLogLevel              string
 	flagLogJSON               bool
+	flagClusterIPAsEndpoint   bool
 
 	// Flags to support namespaces
 	flagEnableNamespaces           bool     // Use namespacing on all components
@@ -147,6 +148,8 @@ func (c *Command) init() {
 	c.flags.StringVar(&c.flagCrossNamespaceACLPolicy, "consul-cross-namespace-acl-policy", "",
 		"[Enterprise Only] Name of the ACL policy to attach to all created Consul namespaces to allow service "+
 			"discovery across Consul namespaces. Only necessary if ACLs are enabled.")
+	c.flags.BoolVar(&c.flagClusterIPAsEndpoint, "clusterip-as-endpoint", true,
+		"If true, use the service ClusterIP as the endpoint. Not the pod IP addresses.")
 
 	c.consul = &flags.ConsulFlags{}
 	c.k8s = &flags.K8SFlags{}
@@ -291,6 +294,7 @@ func (c *Command) Run(args []string) int {
 				EnableK8SNSMirroring:       c.flagEnableK8SNSMirroring,
 				K8SNSMirroringPrefix:       c.flagK8SNSMirroringPrefix,
 				ConsulNodeName:             c.flagConsulNodeName,
+				ClusterIPAsEndpoint:        c.flagClusterIPAsEndpoint,
 			},
 		}
 

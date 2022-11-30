@@ -126,6 +126,9 @@ type ServiceResource struct {
 	// The Consul node name to register service with.
 	ConsulNodeName string
 
+	// Only sync the cluster ip address belonging to the service.
+	ClusterIPAsEndpoint bool
+
 	// serviceLock must be held for any read/write to these maps.
 	serviceLock sync.RWMutex
 
@@ -311,7 +314,7 @@ func (t *ServiceResource) shouldTrackEndpoints(key string) bool {
 	}
 
 	return svc.Spec.Type == apiv1.ServiceTypeNodePort ||
-		svc.Spec.Type == apiv1.ServiceTypeClusterIP ||
+		svc.Spec.Type == apiv1.ServiceTypeClusterIP && !t.ClusterIPAsEndpoint ||
 		(t.LoadBalancerEndpointsSync && svc.Spec.Type == apiv1.ServiceTypeLoadBalancer)
 }
 
@@ -594,6 +597,21 @@ func (t *ServiceResource) generateRegistrations(key string) {
 	// For ClusterIP services, we register a service instance
 	// for each endpoint.
 	case apiv1.ServiceTypeClusterIP:
+		// When the service type is ClusterIP, and the ClusterIPAsEndpoint
+		// option has been set. Set the ClusterIP as the nodes service address
+		// and return.
+		if t.ClusterIPAsEndpoint {
+			r := baseNode
+			rs := baseService
+			ip := svc.Spec.ClusterIP
+			r.Service = &rs
+			r.Service.ID = serviceID(r.Service.Service, ip)
+			r.Service.Address = ip
+			t.consulMap[key] = append(t.consulMap[key], &r)
+
+			return
+		}
+
 		t.registerServiceInstance(baseNode, baseService, key, overridePortName, overridePortNumber, true)
 	}
 }
